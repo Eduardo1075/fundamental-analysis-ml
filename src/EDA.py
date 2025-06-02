@@ -1,95 +1,58 @@
-# Extrair e preparar dados financeiros das empresas
 import pandas as pd
-import os
-import zipfile
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-def extrair_fundamentos(zip_file, extract_folder, empresas):
-    os.makedirs(extract_folder, exist_ok=True)
+def analisar_variaveis_nulas(df):
+    """
+    Exibe a contagem e percentual de variáveis nulas no DataFrame.
+    """
+    nulos = df.isnull().sum()
+    percentual = (nulos / len(df)) * 100
+    nulos_df = pd.DataFrame({'nulos': nulos, 'percentual': percentual})
+    nulos_df = nulos_df[nulos_df['nulos'] > 0].sort_values(by='percentual', ascending=False)
+    print(nulos_df)
+    return nulos_df
 
-    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
-        zip_ref.extractall(extract_folder)
+def visualizar_distribuicoes(df, colunas, bins=30):
+    """
+    Plota histogramas para as colunas numéricas especificadas.
+    """
+    for coluna in colunas:
+        plt.figure(figsize=(8, 4))
+        sns.histplot(df[coluna].dropna(), bins=bins, kde=True)
+        plt.title(f'Distribuição de {coluna}')
+        plt.xlabel(coluna)
+        plt.ylabel('Frequência')
+        plt.show()
 
-    fundamentos = {}
-    pasta_balancos = os.path.join(extract_folder, 'balancos')
-    arquivos = os.listdir(pasta_balancos)
+def visualizar_boxplots(df, colunas):
+    """
+    Plota boxplots para as colunas numéricas especificadas.
+    """
+    for coluna in colunas:
+        plt.figure(figsize=(8, 4))
+        sns.boxplot(x=df[coluna])
+        plt.title(f'Boxplot de {coluna}')
+        plt.xlabel(coluna)
+        plt.show()
 
-    for arquivo in arquivos:
-        nome = arquivo[-9:-4]
-        if '11' in nome:
-            nome = arquivo[-10:-4]
-        if nome in empresas:
-            balanco = pd.read_excel(os.path.join(pasta_balancos, arquivo), sheet_name=0)
-            balanco.iloc[0, 0] = nome
-            balanco.columns = balanco.iloc[0]
-            balanco = balanco[1:]
-            balanco = balanco.set_index(nome)
+def correlacao_heatmap(df, metodo='pearson', annot=True, cmap='coolwarm'):
+    """
+    Plota um mapa de calor com a matriz de correlação.
+    """
+    plt.figure(figsize=(12, 8))
+    matriz_corr = df.corr(method=metodo)
+    sns.heatmap(matriz_corr, annot=annot, cmap=cmap)
+    plt.title(f'Heatmap de Correlação ({metodo})')
+    plt.show()
+    return matriz_corr
 
-            dre = pd.read_excel(os.path.join(pasta_balancos, arquivo), sheet_name=1)
-            dre.iloc[0, 0] = nome
-            dre.columns = dre.iloc[0]
-            dre = dre[1:]
-            dre = dre.set_index(nome)
-
-
-# Filtrar e preparar cotações das empresas          
-            fundamentos[nome] = (balanco, dre)
-    return fundamentos
-
-def preparar_cotacoes(cotacoes_file, empresas, fundamentos):
-    cotacoes_df = pd.read_excel(cotacoes_file)
-    cotacoes = {}
-
-    for empresa in cotacoes_df["Empresa"].unique():
-        cotacoes[empresa] = cotacoes_df.loc[cotacoes_df['Empresa'] == empresa, :]
-
-    for empresa in empresas[:]:  # faz cópia para evitar erro de remoção em loop
-        if cotacoes[empresa].isnull().values.any():
-            cotacoes.pop(empresa)
-            fundamentos.pop(empresa)
-
-    empresas_validas = list(cotacoes.keys())
-    return cotacoes, fundamentos, empresas_validas
-
-# Consolidar fundamentos com cotações
-def consolidar_fundamentos(fundamentos, cotacoes):
-    for empresa in fundamentos:
-        tabela = fundamentos[empresa][0].T
-        tabela.index = pd.to_datetime(tabela.index, dayfirst=True, errors='coerce')
-        tabela_cotacao = cotacoes[empresa].set_index('Date')[['Adj Close']]
-        tabela = tabela.merge(tabela_cotacao, left_index=True, right_index=True)
-        tabela.index.name = empresa
-        fundamentos[empresa] = tabela
-    return fundamentos
-
-# Garantir consistência das colunas
-def filtrar_empresas_consistentes(fundamentos, empresas):
-    colunas_referencia = list(fundamentos['ABEV3'].columns)
-    empresas_consistentes = []
-
-    for empresa in empresas:
-        if set(colunas_referencia) == set(fundamentos[empresa].columns):
-            empresas_consistentes.append(empresa)
-        else:
-            fundamentos.pop(empresa)
-    
-    return fundamentos, empresas_consistentes
-
-# Ajustar colunas duplicadas
-def ajustar_colunas_duplicadas(fundamentos):
-    exemplo = list(fundamentos.keys())[0]
-    colunas_originais = fundamentos[exemplo].columns.tolist()
-    texto_colunas = ';'.join(colunas_originais)
-
-    colunas_modificadas = []
-    for coluna in colunas_originais:
-        if colunas_originais.count(coluna) == 2 and coluna not in colunas_modificadas:
-            texto_colunas = texto_colunas.replace(';' + coluna + ';', ';' + coluna + '_1;', 1)
-            colunas_modificadas.append(coluna)
-
-    colunas = texto_colunas.split(';')
-
-    for empresa in fundamentos:
-        n_colunas = len(fundamentos[empresa].columns)
-        fundamentos[empresa].columns = colunas[:n_colunas]
-
-    return fundamentos
+def relatorio_estatistico(df):
+    """
+    Gera um resumo estatístico descritivo para o DataFrame.
+    """
+    resumo = df.describe().T
+    resumo['missing'] = df.isnull().sum()
+    resumo['missing_percent'] = (resumo['missing'] / len(df)) * 100
+    print(resumo)
+    return resumo
