@@ -86,7 +86,7 @@ Consulte sempre profissionais certificados antes de tomar decisões financeiras.
 
 ## 👤 Contato
 
-**Autor:** [Seu Nome]  
+**Autor:** Eduardo Augusto  
 
 - 💼 [LinkedIn](https://www.linkedin.com/in/eduardo-augusto-da-silva-batista-vieira/)
 - 💻 [GitHub](https://github.com/Eduardo1075)  
